@@ -5,8 +5,9 @@ import 'package:latlong2/latlong.dart';
 
 class MarkerNode extends MarkerOrClusterNode implements Marker {
   final Marker marker;
+  final WidgetBuilder? partialBuilder;
 
-  MarkerNode(this.marker) : super(parent: null);
+  MarkerNode(this.marker, this.partialBuilder) : super(parent: null);
 
   @override
   Key? get key => marker.key;

@@ -134,7 +134,7 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
   void _addLayers() {
     for (final marker in widget.options.markers) {
       _clusterManager.addLayer(
-        MarkerNode(marker),
+        MarkerNode(marker, widget.options.partialBuilder),
         widget.options.disableClusteringAtZoom,
         _maxZoom,
         _minZoom,
@@ -161,6 +161,7 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
     required AnimationController controller,
     required Translate translate,
     Fade? fade,
+    WidgetBuilder? partialBuilder,
   }) {
     return MapWidget(
       size: Size(marker.width, marker.height),
@@ -178,6 +179,8 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
       child: MarkerWidget(
         marker: marker,
         onTap: _onMarkerTap(marker),
+        partial: widget.options.partialCluster,
+        partialBuilder: partialBuilder,
       ),
     );
   }
@@ -242,13 +245,18 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
     if (layer is MarkerNode) {
       return _buildMarkerLayer(layer);
     } else if (layer is MarkerClusterNode) {
+      if (widget.options.partialCluster) {
+        return layer.markers.fold<List<Widget>>([], 
+          (List<Widget> acc, e) => [...acc, ..._buildMarkerLayer(e, widget.options.partialBuilder)])
+          .toList();
+      }
       return _buildMarkerClusterLayer(layer);
     } else {
       throw 'Unexpected layer type: ${layer.runtimeType}';
     }
   }
 
-  List<Widget> _buildMarkerLayer(MarkerNode markerNode) {
+  List<Widget> _buildMarkerLayer(MarkerNode markerNode, [WidgetBuilder? partialBuilder]) {
     if (!_mapCalculator.boundsContainsMarker(markerNode)) return <Widget>[];
 
     if (_zoomingIn && markerNode.parent!.zoom == _previousZoom) {
@@ -259,6 +267,7 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
           marker: markerNode,
           controller: _zoomController,
           translate: StaticTranslate(_mapCalculator, markerNode),
+          partialBuilder: partialBuilder,
         ),
       ];
     }

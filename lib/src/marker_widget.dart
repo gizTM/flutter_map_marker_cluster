@@ -4,10 +4,14 @@ import 'package:flutter_map_marker_cluster/src/node/marker_node.dart';
 class MarkerWidget extends StatelessWidget {
   final MarkerNode marker;
   final VoidCallback onTap;
+  final bool partial;
+  final WidgetBuilder? partialBuilder;
 
   MarkerWidget({
     required this.marker,
     required this.onTap,
+    required this.partial,
+    this.partialBuilder,
   }) : super(key: ObjectKey(marker));
 
   @override
@@ -15,7 +19,9 @@ class MarkerWidget extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: marker.builder(context),
+      child: partial 
+        ? (partialBuilder?.call(context) ?? marker.builder(context))
+        : marker.builder(context),
     );
   }
 }
