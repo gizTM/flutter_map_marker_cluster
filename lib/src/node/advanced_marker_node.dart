@@ -1,12 +1,17 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_marker_cluster/src/node/marker_or_cluster_node.dart';
+import 'package:flutter_map_marker_cluster/src/node/marker_node.dart';
 import 'package:latlong2/latlong.dart';
 
-class MarkerNode extends MarkerOrClusterNode implements Marker {
+class AdvancedMarkerNode<T> extends MarkerNode {
   final Marker marker;
+  final T data;
+  final Widget Function(BuildContext, T) partialBuilder;
 
-  MarkerNode(this.marker) : super(parent: null);
+  AdvancedMarkerNode(this.marker, {
+    required this.partialBuilder, 
+    required this.data,
+  }) : super(marker);
 
   @override
   Key? get key => marker.key;

@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/plugin_api.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
+import 'package:flutter_map_marker_cluster/src/advanced_marker_cluster_layer_options.dart';
+import 'package:flutter_map_marker_cluster/src/advanced_marker_widget.dart';
 import 'package:flutter_map_marker_cluster/src/cluster_manager.dart';
 import 'package:flutter_map_marker_cluster/src/cluster_widget.dart';
 import 'package:flutter_map_marker_cluster/src/core/quick_hull.dart';
@@ -12,6 +14,7 @@ import 'package:flutter_map_marker_cluster/src/map_calculator.dart';
 import 'package:flutter_map_marker_cluster/src/map_widget.dart';
 import 'package:flutter_map_marker_cluster/src/marker_cluster_layer_options.dart';
 import 'package:flutter_map_marker_cluster/src/marker_widget.dart';
+import 'package:flutter_map_marker_cluster/src/node/advanced_marker_node.dart';
 import 'package:flutter_map_marker_cluster/src/node/marker_cluster_node.dart';
 import 'package:flutter_map_marker_cluster/src/node/marker_node.dart';
 import 'package:flutter_map_marker_cluster/src/node/marker_or_cluster_node.dart';
@@ -20,19 +23,19 @@ import 'package:flutter_map_marker_cluster/src/translate.dart';
 import 'package:flutter_map_marker_popup/extension_api.dart';
 import 'package:latlong2/latlong.dart';
 
-class MarkerClusterLayer extends StatefulWidget {
-  final MarkerClusterLayerOptions options;
+class AdvancedMarkerClusterLayer<T> extends StatefulWidget {
+  final AdvancedMarkerClusterLayerOptions<T> options;
   final MapState map;
   final Stream<void> stream;
 
-  const MarkerClusterLayer(this.options, this.map, this.stream, {Key? key})
+  const AdvancedMarkerClusterLayer(this.options, this.map, this.stream, {Key? key})
       : super(key: key);
 
   @override
-  State<MarkerClusterLayer> createState() => _MarkerClusterLayerState();
+  _AdvancedMarkerClusterLayerState<T> createState() => _AdvancedMarkerClusterLayerState<T>();
 }
 
-class _MarkerClusterLayerState extends State<MarkerClusterLayer>
+class _AdvancedMarkerClusterLayerState<T> extends State<AdvancedMarkerClusterLayer<T>>
     with TickerProviderStateMixin {
   late MapCalculator _mapCalculator;
   late ClusterManager _clusterManager;
@@ -47,7 +50,7 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
   late AnimationController _spiderfyController;
   PolygonLayer? _polygon;
 
-  _MarkerClusterLayerState();
+  _AdvancedMarkerClusterLayerState();
 
   bool get _animating =>
       _zoomController.isAnimating ||
@@ -111,7 +114,7 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
   }
 
   @override
-  void didUpdateWidget(MarkerClusterLayer oldWidget) {
+  void didUpdateWidget(AdvancedMarkerClusterLayer<T> oldWidget) {
     if (oldWidget.options.markers != widget.options.markers) {
       _initializeClusterManager();
       _addLayers();
@@ -132,13 +135,18 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
   }
 
   void _addLayers() {
+    int i = 0;
     for (final marker in widget.options.markers) {
       _clusterManager.addLayer(
-        MarkerNode(marker),
+        AdvancedMarkerNode<T>(marker, 
+          partialBuilder: widget.options.partialBuilder,
+          data:  widget.options.data[i] as T,
+        ),
         widget.options.disableClusteringAtZoom,
         _maxZoom,
         _minZoom,
       );
+      i++;
     }
 
     _clusterManager.recalculateTopClusterLevelBounds();
@@ -161,6 +169,8 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
     required AnimationController controller,
     required Translate translate,
     Fade? fade,
+    T? data,
+    Widget Function(BuildContext, T)? partialBuilder,
   }) {
     return MapWidget(
       size: Size(marker.width, marker.height),
@@ -175,36 +185,12 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
               alignment:
                   marker.rotateAlignment ?? widget.options.rotateAlignment,
             ),
-      child: MarkerWidget(
+      child: AdvancedMarkerWidget<T>(
         marker: marker,
         onTap: _onMarkerTap(marker),
-      ),
-    );
-  }
-
-  Widget _buildClusterPartialMarker({
-    required MarkerNode marker,
-    required AnimationController controller,
-    required Translate translate,
-    Fade? fade,
-    required Widget Function(BuildContext, MarkerNode) partialBuilder,
-  }) {
-    return MapWidget(
-      size: Size(marker.width, marker.height),
-      animationController: controller,
-      translate: translate,
-      fade: fade,
-      rotate: marker.rotate != true && widget.options.rotate != true
-          ? null
-          : Rotate(
-              angle: -widget.map.rotationRad,
-              origin: marker.rotateOrigin ?? widget.options.rotateOrigin,
-              alignment:
-                  marker.rotateAlignment ?? widget.options.rotateAlignment,
-            ),
-      child: MarkerWidget(
-        marker: marker,
-        onTap: _onMarkerTap(marker),
+        partial: widget.options.partialCluster,
+        partialBuilder: partialBuilder,
+        data: data,
       ),
     );
   }
@@ -269,32 +255,37 @@ class _MarkerClusterLayerState extends State<MarkerClusterLayer>
     if (layer is MarkerNode) {
       return _buildMarkerLayer(layer);
     } else if (layer is MarkerClusterNode) {
+      if (widget.options.partialCluster) {
+        int i = 0;
+        return layer.markers.fold<List<Widget>>([], 
+          (List<Widget> acc, e) {
+            i++;
+            return [
+              ...acc, 
+              ..._buildMarkerLayer(e, widget.options.data[i - 1], widget.options.partialBuilder),
+            ];
+          })
+          .toList();
+      }
       return _buildMarkerClusterLayer(layer);
     } else {
       throw 'Unexpected layer type: ${layer.runtimeType}';
     }
   }
 
-  List<Widget> _buildMarkerLayer(MarkerNode markerNode, [Widget Function(BuildContext, MarkerNode?)? partialBuilder]) {
+  List<Widget> _buildMarkerLayer(MarkerNode markerNode, [T? data, Widget Function(BuildContext, T)? partialBuilder]) {
     if (!_mapCalculator.boundsContainsMarker(markerNode)) return <Widget>[];
 
     if (_zoomingIn && markerNode.parent!.zoom == _previousZoom) {
       return _buildZoomingInMarkerLayer(markerNode);
-    } else if (partialBuilder != null) {
-      return [
-        _buildClusterPartialMarker(
-          marker: markerNode,
-          controller: _zoomController,
-          translate: StaticTranslate(_mapCalculator, markerNode),
-          partialBuilder: partialBuilder,
-        ),
-      ];
     } else {
       return [
         _buildMarker(
           marker: markerNode,
           controller: _zoomController,
           translate: StaticTranslate(_mapCalculator, markerNode),
+          data: data,
+          partialBuilder: partialBuilder,
         ),
       ];
     }

@@ -125,10 +125,6 @@ class MarkerClusterLayerOptions extends LayerOptions {
   /// A cluster will cover at most this many pixels from its center
   final int maxClusterRadius;
 
-  final WidgetBuilder? partialBuilder;
-
-  final bool partialCluster;
-
   /// Options for fit bounds
   final FitBoundsOptions fitBoundsOptions;
 
@@ -185,8 +181,6 @@ class MarkerClusterLayerOptions extends LayerOptions {
     this.computeSize,
     this.anchor,
     this.maxClusterRadius = 80,
-    this.partialCluster = false,
-    this.partialBuilder,
     this.disableClusteringAtZoom = 20,
     this.animationsOptions = const AnimationsOptions(),
     this.fitBoundsOptions = const FitBoundsOptions(padding: EdgeInsets.all(12)),
